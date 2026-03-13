@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crazy Wheel - Birthday Edition</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Righteous&display=swap');
+
+        body {
+            background: radial-gradient(circle, #2b0054, #0a001a);
+            color: white;
+            font-family: 'Righteous', cursive;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        h1 {
+            font-size: 4rem;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            text-shadow: 0 0 10px #ff007f, 0 0 20px #ff007f, 0 0 40px #ff007f;
+            margin-bottom: 30px;
+            animation: pulse 1.5s infinite;
+        }
+
+        .wheel-container {
+            position: relative;
+            width: 450px;
+            height: 450px;
+        }
+
+        .pointer {
+            position: absolute;
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 25px solid transparent;
+            border-right: 25px solid transparent;
+            border-top: 50px solid #ffd700;
+            z-index: 10;
+            filter: drop-shadow(0 0 15px #ffd700);
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            box-shadow: 0 0 30px #00ffff, 0 0 60px #00ffff inset;
+            border: 10px solid #ffd700;
+            transition: transform 7s cubic-bezier(0.15, 0.9, 0.15, 1);
+        }
+
+        .spin-btn {
+            margin-top: 40px;
+            padding: 20px 70px;
+            font-size: 2.5rem;
+            font-family: 'Righteous', cursive;
+            text-transform: uppercase;
+            background: linear-gradient(45deg, #ff007f, #ffaa00);
+            border: 3px solid #fff;
+            border-radius: 50px;
+            color: white;
+            cursor: pointer;
+            box-shadow: 0 0 20px #ff007f, 0 6px 0 #b30059;
+        }
+
+        .spin-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 10px #ff007f, 0 2px 0 #b30059;
+        }
+
+        .spin-btn:disabled {
+            background: #555;
+            box-shadow: none;
+            color: #888;
+            cursor: not-allowed;
+            border-color: #777;
+        }
+
+        #result-container {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.8s ease;
+            z-index: 20;
+        }
+
+        #result-container.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #result {
+            font-size: 4rem;
+            color: #ffd700;
+            text-shadow: 0 0 20px #ffd700;
+            text-transform: uppercase;
+            text-align: center;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Crazy Wheel</h1>
+    <div class="wheel-container">
+        <div class="pointer"></div>
+        <canvas id="wheel" width="500" height="500"></canvas>
+    </div>
+    <button class="spin-btn" id="spinBtn" onclick="spinWheel()">Gira!</button>
+
+    <div id="result-container">
+        <div id="result">🏆 Hai vinto: Kit Gym-Bro! 🏆</div>
+    </div>
+
+    <script>
+        // --- SISTEMA AUDIO INTEGRATO (Senza file MP3) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playTick() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.05);
+            gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.05);
+        }
+
+        function playWin() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+            osc.frequency.setValueAtTime(600, audioCtx.currentTime + 0.2);
+            osc.frequency.setValueAtTime(800, audioCtx.currentTime + 0.4);
+            gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1.5);
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 1.5);
+        }
+
+        // --- RUOTA E LOGICA ---
+        const canvas = document.getElementById("wheel");
+        const ctx = canvas.getContext("2d");
+        const resultContainer = document.getElementById("result-container");
+        const spinBtn = document.getElementById("spinBtn");
+
+        const prizes = ["Kit Gym-Bro", "Vacanza Teheran", "Uno Speaker", "Buono Boggi", "Margot Robbie"];
+        const colors = ["#ff007f", "#00e5ff", "#ffaa00", "#8a2be2", "#39ff14"];
+        const sliceAngle = (2 * Math.PI) / prizes.length;
+
+        function drawWheel() {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = canvas.width / 2;
+
+            for (let i = 0; i < prizes.length; i++) {
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, radius, i * sliceAngle, (i + 1) * sliceAngle);
+                ctx.fillStyle = colors[i];
+                ctx.fill();
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = "#fff";
+                ctx.stroke();
+
+                ctx.save();
+                ctx.translate(centerX, centerY);
+                ctx.rotate((i + 0.5) * sliceAngle);
+                ctx.textAlign = "right";
+                ctx.fillStyle = "white";
+                ctx.font = "bold 26px 'Righteous', cursive";
+                ctx.shadowColor = "rgba(0,0,0,0.8)";
+                ctx.shadowBlur = 8;
+                ctx.fillText(prizes[i].toUpperCase(), radius - 20, 10);
+                ctx.restore();
+            }
+        }
+        drawWheel();
+
+        let currentRotation = 0;
+        let isSpinning = false;
+        let lastTickAngle = 0;
+
+        function spinWheel() {
+            if (isSpinning) return;
+            isSpinning = true;
+            spinBtn.disabled = true;
+            resultContainer.classList.remove("show");
+
+            // Sblocca l'audio su mobile
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            // IL TRUCCO
+            const baseTarget = 234; 
+            const extraSpins = 3600; 
+            const randomOffset = Math.floor(Math.random() * 40) - 20; 
+            const finalRotation = currentRotation + extraSpins + baseTarget + randomOffset - (currentRotation % 360);
+
+            canvas.style.transform = `rotate(${finalRotation}deg)`;
+            currentRotation = finalRotation;
+
+            // LOGICA TICK AUDIO
+            lastTickAngle = 0;
+            let currentAnimationFrame;
+            
+            function checkRotationForTicks() {
+                if (!isSpinning) return;
+                let style = window.getComputedStyle(canvas);
+                let matrix = style.transform || style.webkitTransform;
+                if (matrix !== 'none') {
+                    let values = matrix.split('(')[1].split(')')[0].split(',');
+                    let angle = Math.round(Math.atan2(values[1], values[0]) * (180/Math.PI));
+                    if (angle < 0) angle += 360;
+                    
+                    let currentTickAngle = Math.floor(angle / 72) * 72;
+                    if (currentTickAngle !== lastTickAngle) {
+                        playTick();
+                        lastTickAngle = currentTickAngle;
+                    }
+                }
+                currentAnimationFrame = requestAnimationFrame(checkRotationForTicks);
+            }
+            requestAnimationFrame(checkRotationForTicks);
+
+            // FINE
+            setTimeout(() => {
+                isSpinning = false;
+                spinBtn.disabled = false;
+                cancelAnimationFrame(currentAnimationFrame);
+                playWin();
+                resultContainer.classList.add("show");
+            }, 7000); 
+        }
+    </script>
+</body>
+</html>
