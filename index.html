@@ -194,12 +194,18 @@
                 ctx.save();
                 ctx.translate(centerX, centerY);
                 ctx.rotate((i + 0.5) * sliceAngle);
+                
+                // --- POSIZIONAMENTO TESTO MIGLIORATO ---
                 ctx.textAlign = "right";
+                ctx.textBaseline = "middle"; // Centra perfettamente in verticale
                 ctx.fillStyle = "white";
-                ctx.font = "bold 26px 'Righteous', cursive";
-                ctx.shadowColor = "rgba(0,0,0,0.8)";
-                ctx.shadowBlur = 8;
-                ctx.fillText(prizes[i].toUpperCase(), radius - 20, 10);
+                ctx.font = "bold 22px 'Righteous', cursive"; // Font leggermente rimpicciolito
+                ctx.shadowColor = "rgba(0,0,0,0.9)"; // Ombra rinforzata per leggibilità
+                ctx.shadowBlur = 10;
+                
+                // Radius - 35 dà un bel margine. y = 0 lo blocca al centro esatto dello spicchio.
+                ctx.fillText(prizes[i].toUpperCase(), radius - 35, 0); 
+                
                 ctx.restore();
             }
         }
